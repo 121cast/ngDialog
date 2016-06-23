@@ -509,6 +509,14 @@
                             resolve[key] = angular.isString(value) ? $injector.get(value) : $injector.invoke(value, null, null, key);
                         });
 
+                        var hasOverlayClass = options.overlay ? '' : ' ngdialog-no-overlay';
+                        $dialog = $el('<div id="ngdialog' + localID + '" class="ngdialog' + hasOverlayClass + '"></div>');
+                        $dialog.html((options.overlay ? '<div class="ngdialog-overlay"></div>' : ''));
+                        
+						$dialog.data('$ngDialogOptions', options);
+                        
+						renderOverlay();
+
                         $q.all({
                             template: loadTemplate(options.template || options.templateUrl),
                             locals: $q.all(resolve)
@@ -520,13 +528,7 @@
                                 template += '<div class="ngdialog-close"></div>';
                             }
 
-                            var hasOverlayClass = options.overlay ? '' : ' ngdialog-no-overlay';
-                            $dialog = $el('<div id="'+dialogID + '" class="ngdialog' + hasOverlayClass + '"></div>');
-                            $dialog.html((options.overlay ?
-                                '<div class="ngdialog-overlay"></div><div class="ngdialog-content" role="document">' + template + '</div>' :
-                                '<div class="ngdialog-content" role="document">' + template + '</div>'));
-
-                            $dialog.data('$ngDialogOptions', options);
+                            $dialog.append('<div class="ngdialog-content" role="document">' + template + '</div>');
 
                             scope.ngDialogId = dialogID;
 
@@ -558,12 +560,6 @@
 
                             if (options.disableAnimation) {
                                 $dialog.addClass(disabledAnimationClass);
-                            }
-
-                            if (options.appendTo && angular.isString(options.appendTo)) {
-                                $dialogParent = angular.element(document.querySelector(options.appendTo));
-                            } else {
-                                $dialogParent = $elements.body;
                             }
 
                             privateMethods.applyAriaAttributes($dialog, options);
@@ -623,32 +619,7 @@
                                 }
                             }
 
-                            $timeout(function () {
-                                var $activeDialogs = document.querySelectorAll('.ngdialog');
-                                privateMethods.deactivateAll($activeDialogs);
-
-                                $compile($dialog)(scope);
-                                var widthDiffs = $window.innerWidth - $elements.body.prop('clientWidth');
-                                $elements.html.addClass(options.bodyClassName);
-                                $elements.body.addClass(options.bodyClassName);
-                                var scrollBarWidth = widthDiffs - ($window.innerWidth - $elements.body.prop('clientWidth'));
-                                if (scrollBarWidth > 0) {
-                                    privateMethods.setBodyPadding(scrollBarWidth);
-                                }
-                                $dialogParent.append($dialog);
-
-                                privateMethods.activate($dialog);
-
-                                if (options.trapFocus) {
-                                    privateMethods.autoFocus($dialog);
-                                }
-
-                                if (options.name) {
-                                    $rootScope.$broadcast('ngDialog.opened', {dialog: $dialog, name: options.name});
-                                } else {
-                                    $rootScope.$broadcast('ngDialog.opened', $dialog);
-                                }
-                            });
+                            renderDialog();
 
                             if (!keydownIsBound) {
                                 $elements.body.bind('keydown', privateMethods.onDocumentKeydown);
@@ -696,11 +667,50 @@
                             }
                         };
 
+                        function renderOverlay() {
+                        	if (options.appendTo && angular.isString(options.appendTo)) {
+                        		$dialogParent = angular.element(document.querySelector(options.appendTo));
+                        	} else {
+                        		$dialogParent = $elements.body;
+                        	}
+
+ 							var $activeDialogs = document.querySelectorAll('.ngdialog');
+ 							privateMethods.deactivateAll($activeDialogs);
+
+ 							$elements.html.addClass(options.bodyClassName);
+ 							$elements.body.addClass(options.bodyClassName);
+ 							$dialogParent.append($dialog);
+ 						}
+ 
+ 						function renderDialog() {
+ 							$compile($dialog)(scope);
+ 							var widthDiffs = $window.innerWidth - $elements.body.prop('clientWidth');
+ 
+ 							var scrollBarWidth = widthDiffs - ($window.innerWidth - $elements.body.prop('clientWidth'));
+ 							if (scrollBarWidth > 0) {
+ 								privateMethods.setBodyPadding(scrollBarWidth);
+ 							}
+ 
+ 							privateMethods.activate($dialog);
+ 
+ 							if (options.trapFocus) {
+ 								privateMethods.autoFocus($dialog);
+ 							}
+ 
+ 							if (options.name) {
+ 								$rootScope.$broadcast('ngDialog.opened', { dialog: $dialog, name: options.name });
+ 							} else {
+ 								$rootScope.$broadcast('ngDialog.opened', $dialog);
+ 							}
+ 						}
+
                         function loadTemplateUrl (tmpl, config) {
                             $rootScope.$broadcast('ngDialog.templateLoading', tmpl);
                             return $http.get(tmpl, (config || {})).then(function(res) {
                                 $rootScope.$broadcast('ngDialog.templateLoaded', tmpl);
                                 return res.data || '';
+                            }, function() {
+	                            privateMethods.closeDialog($dialog);
                             });
                         }
 
